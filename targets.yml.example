@@ -1,0 +1,74 @@
+# Per-host cleanup target list, deployed to /opt/oshvl-ops-agent/targets.yml
+# by oshvl.infra.deploy_ops_agent. This file documents the schema — the real
+# one is templated by Ansible with host-specific paths (runner username,
+# claude version homes, etc. differ per org/host).
+#
+# Fields:
+#   name               - unique id, used in logs/reports
+#   description        - human-readable
+#   base_dir           - directory whose direct children are candidates
+#   mode               - "age" (older than max_age_days) or "keep_newest_n"
+#   max_age_days       - required when mode is "age"
+#   keep_newest_n      - required when mode is "keep_newest_n"
+#   requires_sudo      - true if this target needs the root_cleanup_helper.py
+#   privileged_action  - the --action name the helper expects (required if requires_sudo)
+#   requires_runner_idle - true to skip this target while a GH Actions job is in flight
+#   report_only        - true for candidates that are only ever reported, never deleted
+
+- name: bun-cache
+  description: bun install cache under the runner user's home
+  base_dir: "/home/{{ ops_agent_runner_user }}/.bun/install/cache"
+  mode: age
+  max_age_days: 14
+  requires_sudo: true
+  privileged_action: bun-cache
+
+- name: runner-pip-cache
+  description: pip cache under the runner user's home
+  base_dir: "/home/{{ ops_agent_runner_user }}/.cache/pip"
+  mode: age
+  max_age_days: 14
+  requires_sudo: true
+  privileged_action: runner-pip-cache
+
+- name: root-pip-cache
+  description: pip cache under root's home
+  base_dir: "/root/.cache/pip"
+  mode: age
+  max_age_days: 14
+  requires_sudo: true
+  privileged_action: root-pip-cache
+
+- name: runner-work-cache
+  description: GitHub Actions runner tool cache (_work/__externals__, _work/_tool)
+  base_dir: "/home/{{ ops_agent_runner_user }}/actions-runner/_work"
+  mode: age
+  max_age_days: 30
+  requires_sudo: true
+  privileged_action: runner-work-cache
+  requires_runner_idle: true
+
+- name: runner-diag-logs
+  description: stale GitHub Actions runner diagnostic logs
+  base_dir: "/home/{{ ops_agent_runner_user }}/actions-runner/_diag"
+  mode: age
+  max_age_days: 7
+  requires_sudo: true
+  privileged_action: runner-diag-logs
+
+- name: claude-old-versions
+  description: old Claude Code CLI version binaries, keep newest 3
+  base_dir: "/home/{{ ops_agent_runner_user }}/.local/share/claude/versions"
+  mode: keep_newest_n
+  keep_newest_n: 3
+  requires_sudo: true
+  privileged_action: claude-old-versions
+
+- name: list-orphaned-homes
+  description: report-only listing of /home entries with no matching systemd service (never deletes)
+  base_dir: /home
+  mode: age
+  max_age_days: 90
+  requires_sudo: true
+  privileged_action: list-orphaned-homes
+  report_only: true
