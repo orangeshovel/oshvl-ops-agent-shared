@@ -15,6 +15,20 @@ logger = logging.getLogger(__name__)
 
 InvokePrivileged = Callable[..., object]
 
+# Lines the root helper prints for each path it did or would touch. Used to
+# recover a candidate count from its stdout, since the privileged path has no
+# other way to report structured counts back to this process. bytes_reclaimed
+# stays 0 for privileged targets -- the helper doesn't report sizes.
+_CANDIDATE_LINE_MARKERS = ("would delete ", "deleting ", "candidate orphaned home")
+
+
+def _count_privileged_candidates(stdout: str) -> int:
+    return sum(
+        1
+        for line in stdout.splitlines()
+        if any(marker in line for marker in _CANDIDATE_LINE_MARKERS)
+    )
+
 
 def _candidates(target: Target) -> list[Path]:
     base = Path(target.base_dir)
@@ -44,11 +58,13 @@ def run_target(
 
     if target.requires_sudo:
         result = invoke_privileged(target.privileged_action, apply)
+        stdout = getattr(result, "stdout", "") or ""
         status = "applied" if apply else "dry_run"
         return TargetReport(
             name=target.name,
             status=status,
-            detail=(getattr(result, "stdout", "") or "").strip()[:500],
+            candidates=_count_privileged_candidates(stdout),
+            detail=stdout.strip()[:500],
         )
 
     candidates = _candidates(target)

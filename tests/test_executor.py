@@ -73,6 +73,56 @@ class TestRunTargetPrivileged:
         assert calls == [("root-pip-cache", True)]
         assert report.status == "applied"
 
+    def test_privileged_target_counts_candidates_from_helper_stdout(self):
+        stdout = (
+            "[dry-run] would delete /home/runner/.cache/pip/a\n"
+            "[dry-run] would delete /home/runner/.cache/pip/b\n"
+        )
+
+        def fake_invoke_privileged(action, apply):
+            return type("R", (), {"stdout": stdout})()
+
+        target = Target(
+            name="root-pip-cache", description="d", base_dir="/home/runner/.cache/pip",
+            mode="age", max_age_days=30, requires_sudo=True, privileged_action="root-pip-cache",
+        )
+
+        report = run_target(target, apply=False, invoke_privileged=fake_invoke_privileged)
+
+        assert report.candidates == 2
+        assert report.status == "dry_run"
+
+    def test_privileged_target_counts_zero_candidates_when_nothing_to_do(self):
+        def fake_invoke_privileged(action, apply):
+            return type("R", (), {"stdout": "/root/.cache/pip: does not exist, nothing to do\n"})()
+
+        target = Target(
+            name="root-pip-cache", description="d", base_dir="/root/.cache/pip",
+            mode="age", max_age_days=30, requires_sudo=True, privileged_action="root-pip-cache",
+        )
+
+        report = run_target(target, apply=False, invoke_privileged=fake_invoke_privileged)
+
+        assert report.candidates == 0
+
+    def test_privileged_report_only_action_counts_candidates(self):
+        stdout = (
+            "candidate orphaned home (report-only, never auto-deleted): /home/old-runner\n"
+        )
+
+        def fake_invoke_privileged(action, apply):
+            return type("R", (), {"stdout": stdout})()
+
+        target = Target(
+            name="list-orphaned-homes", description="d", base_dir="/home",
+            mode="age", max_age_days=90, requires_sudo=True,
+            privileged_action="list-orphaned-homes", report_only=True,
+        )
+
+        report = run_target(target, apply=True, invoke_privileged=fake_invoke_privileged)
+
+        assert report.candidates == 1
+
 
 class TestRunTargetRunnerIdleGate:
     def test_skips_when_runner_busy(self, monkeypatch, tmp_path):
