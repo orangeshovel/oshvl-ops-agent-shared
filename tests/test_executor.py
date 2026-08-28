@@ -75,8 +75,8 @@ class TestRunTargetPrivileged:
 
     def test_privileged_target_counts_candidates_from_helper_stdout(self):
         stdout = (
-            "[dry-run] would delete /home/runner/.cache/pip/a\n"
-            "[dry-run] would delete /home/runner/.cache/pip/b\n"
+            "[dry-run] would delete /home/runner/.cache/pip/a [size=100]\n"
+            "[dry-run] would delete /home/runner/.cache/pip/b [size=250]\n"
         )
 
         def fake_invoke_privileged(action, apply):
@@ -91,6 +91,38 @@ class TestRunTargetPrivileged:
 
         assert report.candidates == 2
         assert report.status == "dry_run"
+
+    def test_privileged_target_sums_bytes_from_size_tags(self):
+        stdout = (
+            "deleting /home/runner/.cache/pip/a [size=100]\n"
+            "deleting /home/runner/.cache/pip/b [size=250]\n"
+        )
+
+        def fake_invoke_privileged(action, apply):
+            return type("R", (), {"stdout": stdout})()
+
+        target = Target(
+            name="root-pip-cache", description="d", base_dir="/home/runner/.cache/pip",
+            mode="age", max_age_days=30, requires_sudo=True, privileged_action="root-pip-cache",
+        )
+
+        report = run_target(target, apply=True, invoke_privileged=fake_invoke_privileged)
+
+        assert report.bytes_reclaimed == 350
+
+    def test_privileged_target_bytes_reclaimed_zero_when_helper_has_no_size_tags(self):
+        # journal-vacuum has no per-path [size=N] tags to parse.
+        def fake_invoke_privileged(action, apply):
+            return type("R", (), {"stdout": "Vacuuming done, freed 71.5M\n"})()
+
+        target = Target(
+            name="journal-vacuum", description="d", base_dir="/var/log/journal",
+            mode="age", max_age_days=1, requires_sudo=True, privileged_action="journal-vacuum",
+        )
+
+        report = run_target(target, apply=True, invoke_privileged=fake_invoke_privileged)
+
+        assert report.bytes_reclaimed == 0
 
     def test_privileged_target_counts_zero_candidates_when_nothing_to_do(self):
         def fake_invoke_privileged(action, apply):

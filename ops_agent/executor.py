@@ -1,6 +1,7 @@
 """Disk-cleanup orchestration: turns Target definitions into a dry-run or real cleanup pass."""
 
 import logging
+import re
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -17,9 +18,14 @@ InvokePrivileged = Callable[..., object]
 
 # Lines the root helper prints for each path it did or would touch. Used to
 # recover a candidate count from its stdout, since the privileged path has no
-# other way to report structured counts back to this process. bytes_reclaimed
-# stays 0 for privileged targets -- the helper doesn't report sizes.
+# other way to report structured counts back to this process.
 _CANDIDATE_LINE_MARKERS = ("would delete ", "deleting ", "candidate orphaned home")
+
+# The helper appends `[size=N]` to each candidate line (root_cleanup_helper.py's
+# _report()) -- journal-vacuum is the one privileged action with no such
+# tags, since journalctl reports its own freed amount in human units, not
+# raw bytes; bytes_reclaimed stays 0 for that one action.
+_SIZE_RE = re.compile(r"\[size=(\d+)\]")
 
 
 def _count_privileged_candidates(stdout: str) -> int:
@@ -28,6 +34,10 @@ def _count_privileged_candidates(stdout: str) -> int:
         for line in stdout.splitlines()
         if any(marker in line for marker in _CANDIDATE_LINE_MARKERS)
     )
+
+
+def _sum_privileged_bytes(stdout: str) -> int:
+    return sum(int(match.group(1)) for match in _SIZE_RE.finditer(stdout))
 
 
 def _candidates(target: Target) -> list[Path]:
@@ -64,6 +74,7 @@ def run_target(
             name=target.name,
             status=status,
             candidates=_count_privileged_candidates(stdout),
+            bytes_reclaimed=_sum_privileged_bytes(stdout),
             detail=stdout.strip()[:500],
         )
 
