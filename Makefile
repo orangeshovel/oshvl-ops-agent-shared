@@ -2,7 +2,7 @@ VENV = venv
 PYTHON = $(VENV)/bin/python3
 PIP = $(VENV)/bin/pip
 
-.PHONY: all venv test lint format run-daily run-cleanup run-cleanup-apply run-production clean help
+.PHONY: all venv test lint format run-daily run-daily-apply run-production clean help
 
 all: test
 
@@ -26,21 +26,17 @@ format: $(VENV)/bin/activate
 	$(VENV)/bin/ruff check --fix ops_agent/
 	$(VENV)/bin/ruff format ops_agent/
 
-# Invoked by oshvl-ops-agent-daily.service (05:05 daily). Dry-run vs apply is
-# not gated here — backup/log-monitor/metrics/run-time-tracker have no
-# destructive filesystem side effects beyond what they already write to
-# their own export dir + S3.
+# Invoked by oshvl-ops-agent-daily.service (05:05 daily): cleanup, then
+# backup/log-monitor/metrics/digest. Cleanup dry-run vs apply is gated by
+# APPLY=true in the deployed .env; the rest have no destructive filesystem
+# side effects beyond what they already write to their own export dir + S3.
 run-daily: $(VENV)/bin/activate
-	$(PYTHON) -m ops_agent.daily
+	$(PYTHON) -m ops_agent.daily_cli
 
-# Invoked by oshvl-ops-agent-cleanup.service (weekly). Dry-run by default;
-# respects APPLY=true in the deployed .env.
-run-cleanup: $(VENV)/bin/activate
-	$(PYTHON) -m ops_agent.cli
-
-# Manual operator convenience only — never wired to the timer.
-run-cleanup-apply: $(VENV)/bin/activate
-	$(PYTHON) -m ops_agent.cli --apply
+# Manual operator convenience only — never wired to the timer. Forces a real
+# (non-dry-run) cleanup pass in addition to the normal daily steps.
+run-daily-apply: $(VENV)/bin/activate
+	$(PYTHON) -m ops_agent.daily_cli --apply
 
 run-production: run-daily
 
@@ -59,9 +55,8 @@ help:
 	@echo "  make test               - Run tests"
 	@echo "  make lint                - Run ruff check + format --check"
 	@echo "  make format              - Auto-fix lint issues and format code with ruff"
-	@echo "  make run-daily           - Run the daily backup/log-monitor/digest job"
-	@echo "  make run-cleanup         - Run the weekly disk-cleanup job (dry-run unless APPLY=true)"
-	@echo "  make run-cleanup-apply   - Force a real (non-dry-run) cleanup pass, manual use only"
+	@echo "  make run-daily           - Run the daily cleanup + backup/log-monitor/digest job"
+	@echo "  make run-daily-apply     - Same, but forces a real (non-dry-run) cleanup pass, manual use only"
 	@echo "  make clean               - Remove Python artifacts"
 	@echo ""
 	@echo "Environment Variables (see .env.example):"

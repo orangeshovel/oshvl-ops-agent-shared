@@ -2,7 +2,14 @@
 
 from unittest.mock import MagicMock, patch
 
-from ops_agent.metrics import _cpu_load, _disk, _failed_services, _memory, _uptime, collect_metrics
+from ops_agent.daily_ops.metrics import (
+    _cpu_load,
+    _disk,
+    _failed_services,
+    _memory,
+    _uptime,
+    collect_metrics,
+)
 
 FAKE_LOADAVG = "0.12 0.08 0.05 1/256 12345\n"
 FAKE_MEMINFO = (
@@ -16,7 +23,7 @@ FAKE_UPTIME = "1234567.89 2345678.90\n"
 
 
 class TestCpuLoad:
-    @patch("ops_agent.metrics._read_proc", return_value=FAKE_LOADAVG)
+    @patch("ops_agent.daily_ops.metrics._read_proc", return_value=FAKE_LOADAVG)
     def test_cpu_load_values(self, _):
         result = _cpu_load()
         assert result["load_1"] == 0.12
@@ -25,14 +32,14 @@ class TestCpuLoad:
 
 
 class TestMemory:
-    @patch("ops_agent.metrics._read_proc", return_value=FAKE_MEMINFO)
+    @patch("ops_agent.daily_ops.metrics._read_proc", return_value=FAKE_MEMINFO)
     def test_memory_values(self, _):
         result = _memory()
         assert result["mem_total_gb"] == round(8192000 / 1024 / 1024, 2)
         assert result["mem_pct"] > 0
         assert result["swap_used_gb"] == round(1024000 / 1024 / 1024, 2)
 
-    @patch("ops_agent.metrics._read_proc", return_value=FAKE_MEMINFO)
+    @patch("ops_agent.daily_ops.metrics._read_proc", return_value=FAKE_MEMINFO)
     def test_memory_used_is_total_minus_available(self, _):
         result = _memory()
         expected_used_kb = 8192000 - 4096000
@@ -53,15 +60,15 @@ class TestDisk:
 
 
 class TestUptime:
-    @patch("ops_agent.metrics._read_proc", return_value=FAKE_UPTIME)
+    @patch("ops_agent.daily_ops.metrics._read_proc", return_value=FAKE_UPTIME)
     def test_uptime_days(self, _):
         assert "d" in _uptime()
 
-    @patch("ops_agent.metrics._read_proc", return_value="3723.0 7000.0\n")
+    @patch("ops_agent.daily_ops.metrics._read_proc", return_value="3723.0 7000.0\n")
     def test_uptime_hours(self, _):
         assert _uptime() == "1h 2m"
 
-    @patch("ops_agent.metrics._read_proc", return_value="90.0 180.0\n")
+    @patch("ops_agent.daily_ops.metrics._read_proc", return_value="90.0 180.0\n")
     def test_uptime_minutes(self, _):
         assert _uptime() == "1m"
 
@@ -85,8 +92,8 @@ class TestFailedServices:
 
 
 class TestCollectMetrics:
-    @patch("ops_agent.metrics._read_proc")
-    @patch("ops_agent.metrics._failed_services", return_value=[])
+    @patch("ops_agent.daily_ops.metrics._read_proc")
+    @patch("ops_agent.daily_ops.metrics._failed_services", return_value=[])
     def test_collect_metrics_returns_all_keys(self, _, mock_read):
         mock_read.side_effect = (
             lambda p: FAKE_LOADAVG if "loadavg" in p else FAKE_MEMINFO if "meminfo" in p else FAKE_UPTIME

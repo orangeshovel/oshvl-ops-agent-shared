@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from ops_agent.run_time_tracker import (
+from ops_agent.daily_ops.run_time_tracker import (
     _duration_for_date,
     _format_duration,
     _parse_timestamp,

@@ -3,7 +3,12 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from ops_agent.fs import human_size, iter_paths_beyond_newest_n, iter_stale_paths, path_size_bytes
+from ops_agent.cleanup.fs import (
+    human_size,
+    iter_paths_beyond_newest_n,
+    iter_stale_paths,
+    path_size_bytes,
+)
 
 
 def _touch_with_mtime(path: Path, days_ago: int):

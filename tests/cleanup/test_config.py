@@ -1,4 +1,4 @@
-from ops_agent.config import load_config
+from ops_agent.cleanup.config import load_config
 
 
 class TestLoadConfig:

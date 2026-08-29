@@ -16,7 +16,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from ops_agent.notify import send_alert
+from ops_agent.daily_ops.notify import send_alert
 
 logger = logging.getLogger(__name__)
 

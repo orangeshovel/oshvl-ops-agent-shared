@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 def test_notify_skips_when_no_config():
     with patch.dict(os.environ, {"SHOVEL_BOT_URL": "", "SHOVEL_BOT_API_KEY": ""}, clear=False):
-        from ops_agent import notify
+        from ops_agent.daily_ops import notify
         importlib.reload(notify)
         result = notify.send_alert("error", "Test", "Test message")
     assert result is False
@@ -27,7 +27,7 @@ def test_notify_sends_request():
             },
             clear=False,
         ):
-            from ops_agent import notify
+            from ops_agent.daily_ops import notify
             importlib.reload(notify)
             result = notify.send_alert("info", "Hello", "World")
 
@@ -42,7 +42,7 @@ def test_notify_sends_request():
 
 def test_send_nightly_digest_skips_when_no_config():
     with patch.dict(os.environ, {"SHOVEL_BOT_URL": "", "SHOVEL_BOT_API_KEY": ""}, clear=False):
-        from ops_agent import notify
+        from ops_agent.daily_ops import notify
         importlib.reload(notify)
         result = notify.send_nightly_digest({}, {})
     assert result is False
@@ -63,7 +63,7 @@ def test_send_nightly_digest_posts_summary():
             },
             clear=False,
         ):
-            from ops_agent import notify
+            from ops_agent.daily_ops import notify
             importlib.reload(notify)
             metrics = {"load_1": 0.1, "load_5": 0.1, "load_15": 0.1, "failed_services": []}
             result = notify.send_nightly_digest(metrics, {})

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ops_agent.backup import (
+from ops_agent.daily_ops.backup import (
     cleanup_old_exports,
     compress_file,
     export_database,
@@ -24,7 +24,7 @@ class TestExportDatabase:
             return MagicMock(returncode=0)
 
         mock_run.side_effect = fake_run
-        with patch("ops_agent.backup.datetime") as mock_dt:
+        with patch("ops_agent.daily_ops.backup.datetime") as mock_dt:
             mock_dt.now.return_value.strftime.return_value = "20260101_000000"
             export_database("dbhost", "5432", "mydb", "dbuser", "secret", str(tmp_path))
 
@@ -92,9 +92,9 @@ class TestRunBackup:
 
         assert run_backup(str(tmp_path / "logs"), str(tmp_path / "exports")) is False
 
-    @patch("ops_agent.backup.upload_to_s3")
-    @patch("ops_agent.backup.compress_file")
-    @patch("ops_agent.backup.export_database")
+    @patch("ops_agent.daily_ops.backup.upload_to_s3")
+    @patch("ops_agent.daily_ops.backup.compress_file")
+    @patch("ops_agent.daily_ops.backup.export_database")
     def test_full_workflow_returns_true_on_success(
         self, mock_export, mock_compress, mock_upload, monkeypatch, tmp_path
     ):
@@ -116,7 +116,7 @@ class TestRunBackup:
         assert result is True
         mock_upload.assert_called_once()
 
-    @patch("ops_agent.backup.export_database", side_effect=RuntimeError("boom"))
+    @patch("ops_agent.daily_ops.backup.export_database", side_effect=RuntimeError("boom"))
     def test_exception_during_export_returns_false(self, _, monkeypatch, tmp_path):
         monkeypatch.setenv("PG_HOST", "dbhost")
         monkeypatch.setenv("PG_DATABASE", "mydb")

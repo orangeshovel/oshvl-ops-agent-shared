@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from ops_agent.log_monitor import _discover_app_log_dirs, _scan_file, scan_logs
+from ops_agent.daily_ops.log_monitor import _discover_app_log_dirs, _scan_file, scan_logs
 
 
 def _write_log(lines: list[str]) -> Path:
@@ -61,7 +61,7 @@ class TestScanLogs:
         app_log_dir.mkdir(parents=True)
         (app_log_dir / "run_20260101.log").write_text("all good\n")
 
-        with patch("ops_agent.log_monitor.send_alert") as mock_alert:
+        with patch("ops_agent.daily_ops.log_monitor.send_alert") as mock_alert:
             found = scan_logs(lookback_hours=999999, app_data_root=tmp_path)
 
         assert found is False
@@ -72,7 +72,7 @@ class TestScanLogs:
         app_log_dir.mkdir(parents=True)
         (app_log_dir / "run_20260101.log").write_text("ERROR: boom\n")
 
-        with patch("ops_agent.log_monitor.send_alert") as mock_alert:
+        with patch("ops_agent.daily_ops.log_monitor.send_alert") as mock_alert:
             found = scan_logs(lookback_hours=999999, app_data_root=tmp_path)
 
         assert found is True

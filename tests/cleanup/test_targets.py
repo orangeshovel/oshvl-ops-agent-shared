@@ -1,6 +1,6 @@
 import pytest
 
-from ops_agent.targets import Target, load_targets
+from ops_agent.cleanup.targets import Target, load_targets
 
 
 class TestTarget:

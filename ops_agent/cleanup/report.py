@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
-from ops_agent.fs import human_size
+from ops_agent.cleanup.fs import human_size
 
 
 @dataclass

@@ -1,4 +1,4 @@
-from ops_agent.runner_state import runner_is_idle
+from ops_agent.cleanup.runner_state import runner_is_idle
 
 
 class TestRunnerIsIdle:

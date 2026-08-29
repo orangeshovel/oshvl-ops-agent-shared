@@ -1,6 +1,6 @@
 import json
 
-from ops_agent.report import RunReport, TargetReport
+from ops_agent.cleanup.report import RunReport, TargetReport
 
 
 class TestRunReport:

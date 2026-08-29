@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import yaml
 from dotenv import load_dotenv
 
-from ops_agent.targets import Target, load_targets
+from ops_agent.cleanup.targets import Target, load_targets
 
 load_dotenv(".env")
 

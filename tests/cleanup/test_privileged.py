@@ -1,4 +1,4 @@
-from ops_agent.privileged import HELPER_PATH, invoke_privileged
+from ops_agent.cleanup.privileged import HELPER_PATH, invoke_privileged
 
 
 class TestInvokePrivileged:

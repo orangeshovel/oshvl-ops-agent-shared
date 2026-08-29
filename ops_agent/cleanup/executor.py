@@ -6,11 +6,11 @@ import shutil
 from pathlib import Path
 from typing import Callable
 
-from ops_agent import fs
-from ops_agent.privileged import invoke_privileged as _default_invoke_privileged
-from ops_agent.report import RunReport, TargetReport
-from ops_agent.runner_state import runner_is_idle
-from ops_agent.targets import Target
+from ops_agent.cleanup import fs
+from ops_agent.cleanup.privileged import invoke_privileged as _default_invoke_privileged
+from ops_agent.cleanup.report import RunReport, TargetReport
+from ops_agent.cleanup.runner_state import runner_is_idle
+from ops_agent.cleanup.targets import Target
 
 logger = logging.getLogger(__name__)
 

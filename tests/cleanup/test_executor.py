@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from ops_agent.executor import run_all, run_target
-from ops_agent.targets import Target
+from ops_agent.cleanup.executor import run_all, run_target
+from ops_agent.cleanup.targets import Target
 
 
 def _touch_with_mtime(path: Path, days_ago: int):
@@ -158,7 +158,7 @@ class TestRunTargetPrivileged:
 
 class TestRunTargetRunnerIdleGate:
     def test_skips_when_runner_busy(self, monkeypatch, tmp_path):
-        monkeypatch.setattr("ops_agent.executor.runner_is_idle", lambda: False)
+        monkeypatch.setattr("ops_agent.cleanup.executor.runner_is_idle", lambda: False)
 
         target = Target(
             name="runner-work-cache", description="d", base_dir=str(tmp_path),
@@ -169,7 +169,7 @@ class TestRunTargetRunnerIdleGate:
         assert report.status == "skipped_busy"
 
     def test_proceeds_when_runner_idle(self, monkeypatch, tmp_path):
-        monkeypatch.setattr("ops_agent.executor.runner_is_idle", lambda: True)
+        monkeypatch.setattr("ops_agent.cleanup.executor.runner_is_idle", lambda: True)
         _touch_with_mtime(tmp_path / "stale", days_ago=10)
 
         target = Target(
