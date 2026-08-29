@@ -107,12 +107,15 @@ class TestDailyCliMain:
         mock_digest,
         mock_load_config,
         tmp_path,
+        monkeypatch,
     ):
+        monkeypatch.setenv("PG_HOST", "dbhost")
         mock_load_config.return_value = _fake_config(report_dir=str(tmp_path / "reports"))
 
         exit_code = main(["--log-dir", str(tmp_path)])
 
         assert exit_code == 0
+        mock_backup.assert_called_once()
         mock_alert.assert_not_called()
         mock_digest.assert_called_once()
 
@@ -135,7 +138,9 @@ class TestDailyCliMain:
         mock_digest,
         mock_load_config,
         tmp_path,
+        monkeypatch,
     ):
+        monkeypatch.setenv("PG_HOST", "dbhost")
         mock_load_config.return_value = _fake_config(report_dir=str(tmp_path / "reports"))
 
         exit_code = main(["--log-dir", str(tmp_path)])
@@ -143,3 +148,34 @@ class TestDailyCliMain:
         assert exit_code == 1
         mock_alert.assert_called_once()
         assert "backup failed" in mock_alert.call_args[1]["title"]
+
+    @patch("ops_agent.daily_cli.load_config")
+    @patch("ops_agent.daily_cli.send_nightly_digest", return_value=True)
+    @patch("ops_agent.daily_cli.get_run_times", return_value={})
+    @patch("ops_agent.daily_cli.collect_metrics", return_value={})
+    @patch("ops_agent.daily_cli.scan_logs", return_value=False)
+    @patch("ops_agent.daily_cli.send_alert")
+    @patch("ops_agent.daily_cli.run_backup")
+    @patch("ops_agent.daily_cli.setup_logging")
+    def test_no_pg_host_skips_backup_silently_and_returns_zero(
+        self,
+        mock_setup,
+        mock_backup,
+        mock_alert,
+        mock_scan,
+        mock_metrics,
+        mock_run_times,
+        mock_digest,
+        mock_load_config,
+        tmp_path,
+        monkeypatch,
+    ):
+        monkeypatch.delenv("PG_HOST", raising=False)
+        mock_load_config.return_value = _fake_config(report_dir=str(tmp_path / "reports"))
+
+        exit_code = main(["--log-dir", str(tmp_path)])
+
+        assert exit_code == 0
+        mock_backup.assert_not_called()
+        mock_alert.assert_not_called()
+        mock_digest.assert_called_once()

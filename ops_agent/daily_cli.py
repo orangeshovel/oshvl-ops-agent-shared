@@ -5,7 +5,9 @@ server health digest.
 
 Runs in sequence:
   1. Disk cleanup (prune unbounded caches; dry-run unless APPLY=true / --apply)
-  2. Database backup (PostgreSQL → gzip → S3)
+  2. Database backup (PostgreSQL → gzip → S3) — skipped silently, no alert, on
+     any host with no PG_HOST configured (backup isn't set up everywhere this
+     job runs)
   3. Log monitor (scan all app logs for errors, alert via shovel.bot)
   4. Metrics + run-time collection
   5. Nightly digest send
@@ -76,16 +78,21 @@ def main(argv: list[str] | None = None) -> int:
 
     _run_cleanup(args)
 
-    backup_ok = run_backup(args.log_dir, args.export_dir, args.keep_days)
-    if not backup_ok:
-        send_alert(
-            severity="error",
-            title="oshvl-ops-agent: backup failed",
-            message=(
-                "The nightly database backup did not complete successfully. Check logs for details."
-            ),
-            details={"log_dir": args.log_dir},
-        )
+    if os.getenv("PG_HOST"):
+        backup_ok = run_backup(args.log_dir, args.export_dir, args.keep_days)
+        if not backup_ok:
+            send_alert(
+                severity="error",
+                title="oshvl-ops-agent: backup failed",
+                message=(
+                    "The nightly database backup did not complete successfully. "
+                    "Check logs for details."
+                ),
+                details={"log_dir": args.log_dir},
+            )
+    else:
+        logger.info("PG_HOST not set — skipping database backup (not configured for this host)")
+        backup_ok = True
 
     logger.info("Scanning app logs for errors...")
     scan_logs(lookback_hours=args.lookback_hours)
