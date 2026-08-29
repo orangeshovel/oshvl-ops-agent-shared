@@ -134,8 +134,19 @@ def send_nightly_digest(metrics: dict, run_times: dict) -> bool:
         "channel": _SHOVEL_BOT_CHANNEL,
         "app": "oshvl-ops-agent",
         "severity": "info",
-        "title": f"Server Health Digest — {date_str}",
+        "title": f"Server Health — {hostname} | {date_str}",
         "message": message,
+        # Custom blocks, skipping shovel.bot's default header block (which
+        # would otherwise render `title` as its own bold line above this
+        # message — redundant with the "Server Health — {hostname}" line
+        # `message` already opens with).
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+            {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": "*oshvl-ops-agent* | INFO"}],
+            },
+        ],
     }
 
     try:

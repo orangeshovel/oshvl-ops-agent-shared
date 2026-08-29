@@ -70,4 +70,9 @@ def test_send_nightly_digest_posts_summary():
 
     assert result is True
     _, kwargs = mock_post.call_args
-    assert "compute.example.lan" in kwargs["json"]["message"]
+    body = kwargs["json"]
+    assert "compute.example.lan" in body["message"]
+    assert body["title"].startswith("Server Health — compute.example.lan | ")
+    # No header block — avoids duplicating the title as its own line above
+    # the message, which already opens with "Server Health — {hostname}".
+    assert all(block["type"] != "header" for block in body["blocks"])
