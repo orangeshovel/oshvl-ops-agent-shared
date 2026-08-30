@@ -186,7 +186,13 @@ def run_backup(log_dir, export_dir, keep_days=7):
 
     missing_vars = [key for key, value in required_vars.items() if not value]
     if missing_vars:
-        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        # WARNING, not ERROR: log_monitor.py's cross-app log scan matches on
+        # "ERROR" and would alert on this every run for any host that simply
+        # doesn't have backup configured (daily_cli.py already skips calling
+        # run_backup() at all when PG_HOST is unset — this only fires for a
+        # genuinely partial config, and daily_cli.py's own send_alert() on a
+        # False return already covers real failures with a proper alert).
+        logger.warning(f"Missing required environment variables: {', '.join(missing_vars)}")
         return False
 
     try:
