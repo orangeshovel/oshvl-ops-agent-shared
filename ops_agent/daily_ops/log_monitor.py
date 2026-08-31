@@ -22,7 +22,14 @@ logger = logging.getLogger(__name__)
 
 APP_DATA_ROOT = Path(os.getenv("APP_DATA_ROOT", "/app-data"))
 
-ERROR_PATTERNS = ["ERROR", " error ", "Traceback", "CRITICAL", "FATAL"]
+# "ERROR"/"CRITICAL"/"FATAL" match a line's log level (all apps in this fleet
+# use Python's %(levelname)s, which is always uppercase). Deliberately no
+# lowercase "error" pattern: a lowercase, space-bounded "error" matches
+# anywhere in a line's free-text message too, not just level markers, so it
+# flagged unrelated DEBUG/INFO lines whose content happened to contain that
+# word (e.g. rss-aggregator/nibbler logging an article title verbatim that
+# contained "error" as a substring).
+ERROR_PATTERNS = ["ERROR", "Traceback", "CRITICAL", "FATAL"]
 
 # Lines containing these patterns are excluded even if they match ERROR_PATTERNS.
 # Used to suppress false positives from stats summaries (e.g. dbt "ERROR=0" lines).

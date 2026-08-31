@@ -39,6 +39,17 @@ class TestScanFile:
         path = _write_log(["Everything is fine", "Pipeline completed successfully"])
         assert _scan_file(path) == []
 
+    def test_ignores_lowercase_error_in_message_text(self):
+        # Regression: a DEBUG/INFO line whose free-text content happens to
+        # contain the word "error" (e.g. an RSS article title logged
+        # verbatim) must not be treated as an error-level line.
+        line = (
+            "2026-08-30T21:10:27.872Z DEBUG rssaggregator We are parsing "
+            "Arbitrary code execution in QubesOS via copy-to-VM error "
+            "reporting backchannel"
+        )
+        assert _scan_file(_write_log([line])) == []
+
 
 class TestDiscoverAppLogDirs:
     def test_discovers_apps_with_logs_subdir(self, tmp_path):
