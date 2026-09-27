@@ -43,11 +43,15 @@ def _discover_app_log_dirs(root: Path) -> dict[str, Path]:
     """Return {app_name: log_dir} for every app with an existing logs/ dir under root."""
     if not root.exists():
         return {}
-    return {
-        entry.name: entry / "logs"
-        for entry in sorted(root.iterdir())
-        if entry.is_dir() and (entry / "logs").is_dir()
-    }
+    result = {}
+    for entry in sorted(root.iterdir()):
+        log_dir = entry / "logs"
+        try:
+            if entry.is_dir() and log_dir.is_dir():
+                result[entry.name] = log_dir
+        except PermissionError as exc:
+            logger.warning("Skipping %s: %s", entry, exc)
+    return result
 
 
 def _file_is_recent(path: Path, cutoff: datetime) -> bool:

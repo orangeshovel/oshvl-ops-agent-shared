@@ -65,6 +65,21 @@ class TestDiscoverAppLogDirs:
     def test_missing_root_returns_empty(self, tmp_path):
         assert _discover_app_log_dirs(tmp_path / "does-not-exist") == {}
 
+    def test_skips_unreadable_app_dir_without_crashing(self, tmp_path):
+        # Regression: an app dir this process can't traverse into (e.g. a
+        # sibling service's directory with a tighter group) must be skipped,
+        # not crash discovery for every other app.
+        (tmp_path / "shovel.data" / "logs").mkdir(parents=True)
+        locked = tmp_path / "locked-app"
+        locked.mkdir()
+        locked.chmod(0o000)
+        try:
+            discovered = _discover_app_log_dirs(tmp_path)
+        finally:
+            locked.chmod(0o755)
+
+        assert set(discovered) == {"shovel.data"}
+
 
 class TestScanLogs:
     def test_no_errors_across_discovered_apps(self, tmp_path):
