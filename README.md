@@ -23,7 +23,11 @@ run in sequence:
    single cadence instead of two independently-scheduled jobs. **Followup:**
    the now-unused `oshvl-ops-agent-cleanup.timer`/service should be removed
    from the `oshvl-ansible-shared` Ansible role.
-2. **Backup**: database backup (PostgreSQL → gzip → S3).
+2. **Backup**: database backup (PostgreSQL → gzip → S3). After a successful upload it
+   deletes `backups/*.sql.gz` objects older than `--keep-days` (default 7) from the
+   bucket, always keeping the newest 3, and likewise prunes local exports. A failed prune
+   is logged at ERROR (the log monitor alerts) but does not fail the backup. Needs
+   `s3:ListBucket` and `s3:DeleteObject` on the bucket.
 3. **Log monitor**: cross-app log-error scanning + alerting via shovel.bot.
 4. **Metrics + run-time tracking**: server metrics collection and per-app
    run-time tracking.

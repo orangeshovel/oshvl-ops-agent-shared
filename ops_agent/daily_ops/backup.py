@@ -11,7 +11,7 @@ import logging
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import boto3
@@ -146,6 +146,56 @@ def upload_to_s3(file_path, bucket_name, region):
         raise
 
 
+S3_BACKUP_PREFIX = "backups/"
+# Never prune the newest N dumps, however old: if backups stop for a while, retention
+# must not delete the last good copies.
+S3_MIN_BACKUPS_KEPT = 3
+
+
+def cleanup_old_s3_backups(bucket_name, region, days_to_keep=7, prefix=S3_BACKUP_PREFIX):
+    """Delete S3 backup dumps older than days_to_keep days. Returns the number deleted.
+
+    Only touches ``<prefix>*.sql.gz`` and always keeps the newest S3_MIN_BACKUPS_KEPT
+    dumps. Never raises: a failed prune must not report the (already uploaded) backup as
+    failed, so it is logged at ERROR instead, which the log monitor alerts on.
+    """
+    logger.info(f"Cleaning up S3 backups older than {days_to_keep} days in {bucket_name}")
+
+    try:
+        s3_client = boto3.client("s3", region_name=region)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
+
+        dumps = []
+        for page in s3_client.get_paginator("list_objects_v2").paginate(
+            Bucket=bucket_name, Prefix=prefix
+        ):
+            dumps.extend(o for o in page.get("Contents", []) if o["Key"].endswith(".sql.gz"))
+
+        dumps.sort(key=lambda o: o["LastModified"], reverse=True)
+        expired = [o["Key"] for o in dumps[S3_MIN_BACKUPS_KEPT:] if o["LastModified"] < cutoff]
+
+        deleted = 0
+        for i in range(0, len(expired), 1000):  # delete_objects accepts at most 1000 keys
+            batch = expired[i : i + 1000]
+            response = s3_client.delete_objects(
+                Bucket=bucket_name,
+                Delete={"Objects": [{"Key": k} for k in batch], "Quiet": True},
+            )
+            for err in response.get("Errors", []):
+                logger.error(f"S3 delete failed for {err.get('Key')}: {err.get('Message')}")
+            deleted += len(batch) - len(response.get("Errors", []))
+
+        if deleted:
+            logger.info(f"Removed {deleted} old S3 backup(s)")
+        else:
+            logger.info("No old S3 backups to remove")
+        return deleted
+
+    except Exception as e:
+        logger.error(f"S3 backup retention cleanup failed: {e}")
+        return 0
+
+
 def cleanup_old_exports(export_dir, days_to_keep=7):
     """Remove local export files older than specified days."""
     logger.info(f"Cleaning up exports older than {days_to_keep} days")
@@ -203,6 +253,7 @@ def run_backup(log_dir, export_dir, keep_days=7):
         sql_file = export_database(db_host, db_port, db_name, db_user, db_password, export_dir)
         gz_file = compress_file(sql_file)
         upload_to_s3(gz_file, s3_bucket, s3_region)
+        cleanup_old_s3_backups(s3_bucket, s3_region, keep_days)
         cleanup_old_exports(export_dir, keep_days)
 
         logger.info("Backup completed successfully")
