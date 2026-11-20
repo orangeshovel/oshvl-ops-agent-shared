@@ -8,9 +8,11 @@ Runs in sequence:
   2. Database backup (PostgreSQL → gzip → S3) — skipped silently, no alert, on
      any host with no PG_HOST configured (backup isn't set up everywhere this
      job runs)
-  3. Log monitor (scan all app logs for errors, alert via shovel.bot)
-  4. Metrics + run-time collection
-  5. Nightly digest send
+  3. OS package upgrade (apt-get upgrade via the root helper) — only on hosts that set
+     APT_UPGRADE=true; skipped everywhere else
+  4. Log monitor (scan all app logs for errors, alert via shovel.bot)
+  5. Metrics + run-time collection
+  6. Nightly digest send
 
 Cleanup runs first so disk pressure is relieved before the backup/export step
 runs. It was originally its own weekly job (ops_agent/cli.py, driven by a
@@ -37,6 +39,7 @@ from ops_agent.daily_ops.backup import run_backup, setup_logging
 from ops_agent.daily_ops.log_monitor import scan_logs
 from ops_agent.daily_ops.metrics import collect_metrics
 from ops_agent.daily_ops.notify import send_alert, send_nightly_digest
+from ops_agent.daily_ops.os_upgrade import run_os_upgrade
 from ops_agent.daily_ops.run_time_tracker import get_run_times
 
 logger = logging.getLogger(__name__)
@@ -58,6 +61,43 @@ def _run_cleanup(args: argparse.Namespace) -> RunReport:
         logger.info(line)
 
     return report
+
+
+def _run_os_upgrade_step() -> bool:
+    """Upgrade OS packages if this host opted in (APT_UPGRADE=true). Returns True on
+    success or when skipped, False if the upgrade failed."""
+    if os.getenv("APT_UPGRADE", "false").strip().lower() != "true":
+        logger.info("APT_UPGRADE not enabled — skipping OS package upgrade")
+        return True
+
+    result = run_os_upgrade(apply=True)
+    if not result.ok:
+        logger.error("OS package upgrade failed: %s", result.detail)
+        send_alert(
+            severity="error",
+            title="oshvl-ops-agent: OS package upgrade failed",
+            message="The nightly apt upgrade did not complete successfully. Check logs.",
+            details={"error": result.detail},
+        )
+        return False
+
+    logger.info(
+        "OS package upgrade complete: %d upgraded, %d kept back, reboot required: %s",
+        result.upgraded,
+        result.kept_back,
+        result.reboot_required,
+    )
+    if result.reboot_required:
+        send_alert(
+            severity="warning",
+            title="oshvl-ops-agent: reboot required",
+            message=(
+                "Package upgrades are installed but a reboot is needed to apply them "
+                "(e.g. a new kernel). Reboot at a convenient time."
+            ),
+            details={"upgraded_tonight": result.upgraded},
+        )
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -94,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("PG_HOST not set — skipping database backup (not configured for this host)")
         backup_ok = True
 
+    upgrade_ok = _run_os_upgrade_step()
+
     logger.info("Scanning app logs for errors...")
     scan_logs(lookback_hours=args.lookback_hours)
 
@@ -105,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info("oshvl-ops-agent daily job completed")
 
-    return 0 if backup_ok else 1
+    return 0 if backup_ok and upgrade_ok else 1
 
 
 if __name__ == "__main__":

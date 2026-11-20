@@ -28,10 +28,17 @@ run in sequence:
    bucket, always keeping the newest 3, and likewise prunes local exports. A failed prune
    is logged at ERROR (the log monitor alerts) but does not fail the backup. Needs
    `s3:ListBucket` and `s3:DeleteObject` on the bucket.
-3. **Log monitor**: cross-app log-error scanning + alerting via shovel.bot.
-4. **Metrics + run-time tracking**: server metrics collection and per-app
+3. **OS package upgrade** (opt-in): with `APT_UPGRADE=true` in the host's `.env`, runs
+   `apt-get update` + `apt-get upgrade` as root through the sudo helper's `apt-upgrade`
+   action (needs the `oshvl.infra.ops_agent_sudo` role version that provides it). Upgrades
+   all enabled apt sources, never removes packages, and does not reboot. A failure sends
+   an error alert and makes the job exit non-zero. If a reboot is needed afterwards
+   (kernel, libc), it sends a warning alert each night until the host is rebooted. Hosts
+   without `APT_UPGRADE=true` skip this step.
+4. **Log monitor**: cross-app log-error scanning + alerting via shovel.bot.
+5. **Metrics + run-time tracking**: server metrics collection and per-app
    run-time tracking.
-5. **Digest**: nightly Slack digest.
+6. **Digest**: nightly Slack digest.
 
 Steps 2–5 are the generalized continuation of what used to be orangeshovel's
 `apps/shovel.watch/legacy/` + `shovel_watch.py` — moved here because it was
