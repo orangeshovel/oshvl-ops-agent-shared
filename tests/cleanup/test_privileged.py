@@ -1,7 +1,24 @@
-from ops_agent.cleanup.privileged import HELPER_PATH, invoke_privileged
+from unittest.mock import patch
+
+from ops_agent.cleanup.privileged import DEFAULT_TIMEOUT_S, HELPER_PATH, invoke_privileged
 
 
 class TestInvokePrivileged:
+    @patch("subprocess.run")
+    def test_default_timeout_is_used_when_no_runner_given(self, mock_run):
+        invoke_privileged("journal-vacuum", apply=False)
+
+        assert mock_run.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT_S
+
+    @patch("subprocess.run")
+    def test_longer_timeout_is_passed_through(self, mock_run):
+        invoke_privileged("apt-upgrade", apply=True, timeout=3600)
+
+        assert mock_run.call_args.args[0] == [
+            "sudo", "-n", HELPER_PATH, "--action", "apt-upgrade", "--apply",
+        ]
+        assert mock_run.call_args.kwargs["timeout"] == 3600
+
     def test_builds_expected_argv_dry_run(self):
         captured = {}
 

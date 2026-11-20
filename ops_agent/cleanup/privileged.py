@@ -14,14 +14,20 @@ HELPER_PATH = "/opt/oshvl-ops-agent/root-helper/root_cleanup_helper.py"
 Runner = Callable[[list[str]], subprocess.CompletedProcess]
 
 
-def _default_runner(argv: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(argv, capture_output=True, text=True, timeout=120)
+DEFAULT_TIMEOUT_S = 120
 
 
 def invoke_privileged(
-    action: str, apply: bool, runner: Runner = _default_runner
+    action: str,
+    apply: bool,
+    runner: Runner | None = None,
+    timeout: int = DEFAULT_TIMEOUT_S,
 ) -> subprocess.CompletedProcess:
+    """`timeout` (seconds) applies to the real subprocess call; long actions such as
+    apt-upgrade pass a larger one. An explicit `runner` (tests) is used as-is."""
     argv = ["sudo", "-n", HELPER_PATH, "--action", action]
     if apply:
         argv.append("--apply")
-    return runner(argv)
+    if runner is not None:
+        return runner(argv)
+    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
