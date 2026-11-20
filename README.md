@@ -29,9 +29,11 @@ run in sequence:
    is logged at ERROR (the log monitor alerts) but does not fail the backup. Needs
    `s3:ListBucket` and `s3:DeleteObject` on the bucket.
 3. **OS package upgrade** (opt-in): with `APT_UPGRADE=true` in the host's `.env`, runs
-   `apt-get update` + `apt-get upgrade` as root through the sudo helper's `apt-upgrade`
-   action (needs the `oshvl.infra.ops_agent_sudo` role version that provides it). Upgrades
-   all enabled apt sources, never removes packages, and does not reboot. A failure sends
+   `apt-get update` + `apt-get upgrade --with-new-pkgs` as root through the sudo helper's
+   `apt-upgrade` action (needs the `oshvl.infra.ops_agent_sudo` role version that provides
+   it). Upgrades all enabled apt sources, never removes packages (so old kernels
+   accumulate), and does not reboot. Packages apt still holds back are logged, not
+   alerted. It does not check whether a CI job is running. A failure sends
    an error alert and makes the job exit non-zero. If a reboot is needed afterwards
    (kernel, libc), it sends a warning alert each night until the host is rebooted. Hosts
    without `APT_UPGRADE=true` skip this step.
