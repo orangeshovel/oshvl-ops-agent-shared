@@ -31,7 +31,9 @@ run in sequence:
 3. **OS package upgrade** (opt-in): with `APT_UPGRADE=true` in the host's `.env`, runs
    `apt-get update` + `apt-get upgrade --with-new-pkgs` as root through the sudo helper's
    `apt-upgrade` action (needs the `oshvl.infra.ops_agent_sudo` role version that provides
-   it). Upgrades all enabled apt sources, never removes packages (so old kernels
+   it; that helper runs apt non-interactively: `-y`, `DEBIAN_FRONTEND=noninteractive`,
+   `--force-confold`, no stdin, its own 55-minute timeout, and the Ansible deploy checks for
+   these). Upgrades all enabled apt sources, never removes packages (so old kernels
    accumulate), and does not reboot. Packages apt still holds back are logged, not
    alerted. It does not check whether a CI job is running. A failure sends
    an error alert and makes the job exit non-zero. If a reboot is needed afterwards

@@ -48,7 +48,8 @@ def run_os_upgrade(
         result = invoke(ACTION, apply, timeout=TIMEOUT_S)
     except subprocess.TimeoutExpired:
         return UpgradeResult(ok=False, detail=f"timed out after {TIMEOUT_S}s")
-    except Exception as e:
+    except Exception as e:  # deliberate: the digest steps after this must still run
+        logger.exception("OS package upgrade helper call raised")
         return UpgradeResult(ok=False, detail=f"could not run the helper: {e}")
 
     stdout = result.stdout or ""

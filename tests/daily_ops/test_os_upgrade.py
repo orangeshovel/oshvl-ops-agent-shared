@@ -45,6 +45,14 @@ class TestRunOsUpgrade:
         assert ACTION == "apt-upgrade"
         assert TIMEOUT_S > 120  # must outlast the privileged-call default
 
+    def test_dry_run_passes_apply_false(self):
+        invoke = MagicMock(return_value=_completed(GOOD_OUTPUT))
+
+        result = run_os_upgrade(apply=False, invoke=invoke)
+
+        invoke.assert_called_once_with(ACTION, False, timeout=TIMEOUT_S)
+        assert result.ok
+
     def test_nonzero_exit_is_a_failure_with_stderr_detail(self):
         invoke = MagicMock(return_value=_completed("", "E: Unable to lock", returncode=1))
 
