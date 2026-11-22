@@ -1,7 +1,51 @@
-from ops_agent.cleanup.privileged import HELPER_PATH, invoke_privileged
+import subprocess
+import sys
+from unittest.mock import patch
+
+import pytest
+
+from ops_agent.cleanup.privileged import (
+    DEFAULT_TIMEOUT_S,
+    HELPER_PATH,
+    _run_with_graceful_timeout,
+    invoke_privileged,
+)
 
 
 class TestInvokePrivileged:
+    @patch("ops_agent.cleanup.privileged._run_with_graceful_timeout")
+    def test_default_timeout_is_used_when_no_runner_given(self, mock_run):
+        invoke_privileged("journal-vacuum", apply=False)
+
+        assert mock_run.call_args.args[1] == DEFAULT_TIMEOUT_S
+
+    @patch("ops_agent.cleanup.privileged._run_with_graceful_timeout")
+    def test_longer_timeout_is_passed_through(self, mock_run):
+        invoke_privileged("apt-upgrade", apply=True, timeout=3600)
+
+        assert mock_run.call_args.args[0] == [
+            "sudo", "-n", HELPER_PATH, "--action", "apt-upgrade", "--apply",
+        ]
+        assert mock_run.call_args.args[1] == 3600
+
+    @patch("ops_agent.cleanup.privileged._run_with_graceful_timeout")
+    def test_timeout_is_ignored_when_a_runner_is_given(self, mock_run):
+        invoke_privileged("journal-vacuum", apply=False, runner=lambda argv: None, timeout=5)
+
+        mock_run.assert_not_called()
+
+    def test_timeout_sends_sigterm_first_not_sigkill(self):
+        # A child that exits cleanly on SIGTERM: the helper must be asked, not killed.
+        argv = [sys.executable, "-c", "import time; time.sleep(60)"]
+        with pytest.raises(subprocess.TimeoutExpired):
+            _run_with_graceful_timeout(argv, 1)
+
+    def test_run_returns_completed_process(self):
+        result = _run_with_graceful_timeout([sys.executable, "-c", "print('hi')"], 10)
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "hi"
+
     def test_builds_expected_argv_dry_run(self):
         captured = {}
 

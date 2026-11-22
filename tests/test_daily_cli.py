@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from ops_agent.cleanup.targets import Target
 from ops_agent.daily_cli import _run_cleanup, main
+from ops_agent.daily_ops.os_upgrade import UpgradeResult
 
 
 def _fake_config(**overrides):
@@ -179,3 +180,76 @@ class TestDailyCliMain:
         mock_backup.assert_not_called()
         mock_alert.assert_not_called()
         mock_digest.assert_called_once()
+
+
+class TestDailyCliOsUpgrade:
+    """APT_UPGRADE opt-in step: skipped by default, alerts on failure / reboot-needed."""
+
+    def _run(self, tmp_path, monkeypatch, upgrade_result, apt_upgrade="true"):
+        monkeypatch.delenv("PG_HOST", raising=False)
+        if apt_upgrade is None:
+            monkeypatch.delenv("APT_UPGRADE", raising=False)
+        else:
+            monkeypatch.setenv("APT_UPGRADE", apt_upgrade)
+        with (
+            patch("ops_agent.daily_cli.load_config") as mock_cfg,
+            patch("ops_agent.daily_cli.send_nightly_digest", return_value=True) as mock_digest,
+            patch("ops_agent.daily_cli.get_run_times", return_value={}),
+            patch("ops_agent.daily_cli.collect_metrics", return_value={}),
+            patch("ops_agent.daily_cli.scan_logs", return_value=False),
+            patch("ops_agent.daily_cli.send_alert") as mock_alert,
+            patch("ops_agent.daily_cli.setup_logging"),
+            patch("ops_agent.daily_cli.run_os_upgrade", return_value=upgrade_result) as mock_up,
+        ):
+            mock_cfg.return_value = _fake_config(report_dir=str(tmp_path / "reports"))
+            exit_code = main(["--log-dir", str(tmp_path)])
+        return exit_code, mock_up, mock_alert, mock_digest
+
+    def test_skipped_when_not_opted_in(self, tmp_path, monkeypatch):
+        code, mock_up, mock_alert, mock_digest = self._run(
+            tmp_path, monkeypatch, UpgradeResult(ok=True), apt_upgrade=None
+        )
+
+        assert code == 0
+        mock_up.assert_not_called()
+        mock_alert.assert_not_called()
+        mock_digest.assert_called_once()
+
+    def test_skipped_when_explicitly_false(self, tmp_path, monkeypatch):
+        _, mock_up, _, _ = self._run(
+            tmp_path, monkeypatch, UpgradeResult(ok=True), apt_upgrade="false"
+        )
+
+        mock_up.assert_not_called()
+
+    def test_runs_for_real_when_enabled_and_stays_quiet_on_success(self, tmp_path, monkeypatch):
+        result = UpgradeResult(ok=True, upgraded=5, kept_back=0, reboot_required=False)
+
+        code, mock_up, mock_alert, mock_digest = self._run(tmp_path, monkeypatch, result)
+
+        assert code == 0
+        mock_up.assert_called_once_with(apply=True)
+        mock_alert.assert_not_called()
+        mock_digest.assert_called_once()
+
+    def test_failure_alerts_returns_nonzero_and_still_sends_digest(self, tmp_path, monkeypatch):
+        result = UpgradeResult(ok=False, detail="E: Unable to lock")
+
+        code, _, mock_alert, mock_digest = self._run(tmp_path, monkeypatch, result)
+
+        assert code == 1
+        mock_alert.assert_called_once()
+        assert mock_alert.call_args.kwargs["severity"] == "error"
+        assert "upgrade failed" in mock_alert.call_args.kwargs["title"]
+        assert mock_alert.call_args.kwargs["details"] == {"error": "E: Unable to lock"}
+        mock_digest.assert_called_once()
+
+    def test_reboot_required_sends_a_warning_but_succeeds(self, tmp_path, monkeypatch):
+        result = UpgradeResult(ok=True, upgraded=3, reboot_required=True)
+
+        code, _, mock_alert, _ = self._run(tmp_path, monkeypatch, result)
+
+        assert code == 0
+        mock_alert.assert_called_once()
+        assert mock_alert.call_args.kwargs["severity"] == "warning"
+        assert "reboot" in mock_alert.call_args.kwargs["title"]
